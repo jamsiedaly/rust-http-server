@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
@@ -17,6 +18,16 @@ fn main() {
 
                     if message.path == "/" {
                         stream.write(b"HTTP/1.1 200 OK").unwrap();
+                    } else if message.path.starts_with("/echo/") {
+                        let echo_message = message.path.replace("/echo/", "");
+
+                        let response = Response {
+                            status_code: 200,
+                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
+                            body: echo_message,
+                        };
+
+                        stream.write(response.to_string().as_bytes()).unwrap();
                     } else {
                         stream.write(b"HTTP/1.1 404 NOT FOUND").unwrap();
                     }
@@ -35,14 +46,14 @@ fn main() {
 
 
 #[derive(Debug)]
-struct Message {
+struct Request {
     method: String,
     headers: Vec<String>,
     path: String,
     http_version: String,
 }
 
-fn parse_request(request: &str) -> Message {
+fn parse_request(request: &str) -> Request {
     let mut lines = request.lines();
     let first_line = lines.next().unwrap();
     let mut parts = first_line.split_whitespace();
@@ -58,10 +69,29 @@ fn parse_request(request: &str) -> Message {
     });
     headers.remove(headers.len() - 1);
 
-    return Message {
+    return Request {
         method,
         headers,
         path,
         http_version,
     };
+}
+
+#[derive(Debug)]
+struct Response {
+    status_code: u16,
+    headers: Vec<String>,
+    body: String,
+}
+
+impl Display for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut response = format!("HTTP/1.1 {}\r\n", self.status_code);
+        self.headers.iter().for_each(|header| {
+            response.push_str(&format!("{}\r\n", header));
+        });
+        response.push_str("\r\n");
+        response.push_str(&self.body);
+        return write!(f, "{}", response);
+    }
 }
