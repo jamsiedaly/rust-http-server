@@ -1,5 +1,3 @@
-#![feature(string_remove_matches)]
-
 use std::fmt::Display;
 use std::io::{Read, Write};
 use std::net::TcpListener;
