@@ -1,3 +1,5 @@
+#![feature(string_remove_matches)]
+
 use std::fmt::Display;
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -25,6 +27,18 @@ fn main() {
                             status_code: 200,
                             headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
                             body: echo_message,
+                        };
+
+                        stream.write(response.to_string().as_bytes()).unwrap();
+                    } else if message.path.starts_with("/user-agent") {
+                        let user_agent = message.headers.iter().find(
+                            |header| header.starts_with("User-Agent")
+                        ).unwrap().split(":").collect::<Vec<&str>>()[1].trim().to_owned();
+
+                        let response = Response {
+                            status_code: 200,
+                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", message.headers[0].len())],
+                            body: user_agent,
                         };
 
                         stream.write(response.to_string().as_bytes()).unwrap();
