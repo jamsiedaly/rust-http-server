@@ -35,7 +35,7 @@ fn main() {
 
                         let response = Response {
                             status_code: 200,
-                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", message.headers[0].len())],
+                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", user_agent.len())],
                             body: user_agent,
                         };
 
