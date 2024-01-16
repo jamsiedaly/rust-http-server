@@ -82,7 +82,9 @@ fn parse_request(request: &str) -> Request {
             headers.push(line.to_string());
         }
     });
-    headers.remove(headers.len() - 1);
+    if headers.len() > 1 {
+        headers.remove(headers.len() - 1);
+    }
 
     return Request {
         method,
