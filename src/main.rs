@@ -10,44 +10,46 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let mut buf: [u8; 128] = [0; 128];
-                if let Ok(message_length) = stream.read(&mut buf) {
-                    let request = String::from_utf8_lossy(&buf[..message_length]);
+                std::thread::spawn(move || {
+                    let mut buf: [u8; 128] = [0; 128];
+                    if let Ok(message_length) = stream.read(&mut buf) {
+                        let request = String::from_utf8_lossy(&buf[..message_length]);
 
-                    let message = parse_request(&request);
+                        let message = parse_request(&request);
 
-                    if message.path == "/" {
-                        stream.write(b"HTTP/1.1 200 OK").unwrap();
-                    } else if message.path.starts_with("/echo/") {
-                        let echo_message = message.path.replace("/echo/", "");
+                        if message.path == "/" {
+                            stream.write(b"HTTP/1.1 200 OK").unwrap();
+                        } else if message.path.starts_with("/echo/") {
+                            let echo_message = message.path.replace("/echo/", "");
 
-                        let response = Response {
-                            status_code: 200,
-                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
-                            body: echo_message,
-                        };
+                            let response = Response {
+                                status_code: 200,
+                                headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
+                                body: echo_message,
+                            };
 
-                        stream.write(response.to_string().as_bytes()).unwrap();
-                    } else if message.path.starts_with("/user-agent") {
-                        let user_agent = message.headers.iter().find(
-                            |header| header.starts_with("User-Agent")
-                        ).unwrap().split(":").collect::<Vec<&str>>()[1].trim().to_owned();
+                            stream.write(response.to_string().as_bytes()).unwrap();
+                        } else if message.path.starts_with("/user-agent") {
+                            let user_agent = message.headers.iter().find(
+                                |header| header.starts_with("User-Agent")
+                            ).unwrap().split(":").collect::<Vec<&str>>()[1].trim().to_owned();
 
-                        let response = Response {
-                            status_code: 200,
-                            headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", user_agent.len())],
-                            body: user_agent,
-                        };
+                            let response = Response {
+                                status_code: 200,
+                                headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", user_agent.len())],
+                                body: user_agent,
+                            };
 
-                        stream.write(response.to_string().as_bytes()).unwrap();
-                    } else {
-                        stream.write(b"HTTP/1.1 404 NOT FOUND").unwrap();
+                            stream.write(response.to_string().as_bytes()).unwrap();
+                        } else {
+                            stream.write(b"HTTP/1.1 404 NOT FOUND").unwrap();
+                        }
+
                     }
 
-                }
-
-                println!("accepted new connection");
-                stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+                    println!("accepted new connection");
+                    stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+                });
             }
             Err(e) => {
                 println!("error: {}", e);
