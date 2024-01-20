@@ -1,41 +1,79 @@
+use clap::Parser;
 use std::fmt::Display;
+use std::fs;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    directory: String,
+}
 
 fn main() {
-    println!("Logs from your program will appear here!");
+    let args = Args::parse();
 
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
+    let handle = move |args: Args, mut stream: TcpStream| {
+        let mut buf: [u8; 128] = [0; 128];
+        if let Ok(message_length) = stream.read(&mut buf) {
+            let request = String::from_utf8_lossy(&buf[..message_length]);
+
+            let message = parse_request(&request);
+
+            if message.path == "/" {
+                stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+            } else if message.path.starts_with("/echo/") {
+                let response = echo_response(&message);
+                stream.write(response.to_string().as_bytes()).unwrap();
+            } else if message.path.starts_with("/user-agent") {
+                let response = user_agent_request(message);
+                stream.write(response.to_string().as_bytes()).unwrap();
+            } else if message.path.starts_with("/files/") {
+                let response = get_file_response(message, &args.directory);
+                stream.write(response.to_string().as_bytes()).unwrap();
+            } else {
+                stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n").unwrap();
+            }
+        }
+    };
+
     for stream in listener.incoming() {
         match stream {
-            Ok(mut stream) => {
-                std::thread::spawn(move || {
-                    let mut buf: [u8; 128] = [0; 128];
-                    if let Ok(message_length) = stream.read(&mut buf) {
-                        let request = String::from_utf8_lossy(&buf[..message_length]);
-
-                        let message = parse_request(&request);
-
-                        if message.path == "/" {
-                            stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
-                        } else if message.path.starts_with("/echo/") {
-                            let response = echo_response(&message);
-                            stream.write(response.to_string().as_bytes()).unwrap();
-                        } else if message.path.starts_with("/user-agent") {
-                            let response = user_agent_request(message);
-                            stream.write(response.to_string().as_bytes()).unwrap();
-                        } else {
-                            stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n").unwrap();
-                        }
-                    }
-                });
+            Ok(stream) => {
+                std::thread::spawn(move || handle(args, stream));
             }
             Err(e) => {
                 println!("error: {}", e);
             }
         }
     }
+}
+
+fn get_file_response(request: Request, directory: &str) -> Response {
+    let unsanitized_filename = request.path.replace("/files/", "");
+    let filename = &sanitize_filename::sanitize(unsanitized_filename);
+    let path = Path::new(&format!("{}/{}", directory, filename));
+
+    let response = if Path::exists(path) {
+        let file = fs::read_to_string(path).unwrap();
+        Response {
+            status_code: 200,
+            headers: vec!["Content-Type: application/octet-stream".to_owned()],
+            body: file,
+        }
+    } else {
+        Response {
+            status_code: 404,
+            headers: vec!["Content-Type: text/plain".to_owned()],
+            body: "".to_owned(),
+        }
+    };
+
+    return response;
 }
 
 fn echo_response(message: &Request) -> Response {
@@ -115,4 +153,22 @@ impl Display for Response {
         response.push_str(&self.body);
         return write!(f, "{}", response);
     }
+}
+
+impl Into<Vec<u8>> for Response {
+    fn into(self) -> Vec<u8> {
+        return self.to_string().into_bytes();
+    }
+}
+
+impl Clone for Args {
+    fn clone(&self) -> Self {
+        return Args {
+            directory: self.directory.clone(),
+        };
+    }
+}
+
+impl Copy for Args {
+
 }
