@@ -18,7 +18,7 @@ fn main() {
                         let message = parse_request(&request);
 
                         if message.path == "/" {
-                            stream.write(b"HTTP/1.1 200 OK").unwrap();
+                            stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
                         } else if message.path.starts_with("/echo/") {
                             let response = echo_response(&message);
                             stream.write(response.to_string().as_bytes()).unwrap();
@@ -26,7 +26,7 @@ fn main() {
                             let response = user_agent_request(message);
                             stream.write(response.to_string().as_bytes()).unwrap();
                         } else {
-                            stream.write(b"HTTP/1.1 404 NOT FOUND").unwrap();
+                            stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n").unwrap();
                         }
                     }
                 });
