@@ -20,35 +20,15 @@ fn main() {
                         if message.path == "/" {
                             stream.write(b"HTTP/1.1 200 OK").unwrap();
                         } else if message.path.starts_with("/echo/") {
-                            let echo_message = message.path.replace("/echo/", "");
-
-                            let response = Response {
-                                status_code: 200,
-                                headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
-                                body: echo_message,
-                            };
-
+                            let response = echo_response(&message);
                             stream.write(response.to_string().as_bytes()).unwrap();
                         } else if message.path.starts_with("/user-agent") {
-                            let user_agent = message.headers.iter().find(
-                                |header| header.starts_with("User-Agent")
-                            ).unwrap().split(":").collect::<Vec<&str>>()[1].trim().to_owned();
-
-                            let response = Response {
-                                status_code: 200,
-                                headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", user_agent.len())],
-                                body: user_agent,
-                            };
-
+                            let response = user_agent_request(message);
                             stream.write(response.to_string().as_bytes()).unwrap();
                         } else {
                             stream.write(b"HTTP/1.1 404 NOT FOUND").unwrap();
                         }
-
                     }
-
-                    println!("accepted new connection");
-                    stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
                 });
             }
             Err(e) => {
@@ -56,6 +36,30 @@ fn main() {
             }
         }
     }
+}
+
+fn echo_response(message: &Request) -> Response {
+    let echo_message = message.path.replace("/echo/", "");
+
+    let response = Response {
+        status_code: 200,
+        headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", echo_message.len())],
+        body: echo_message,
+    };
+    response
+}
+
+fn user_agent_request(message: Request) -> Response {
+    let user_agent = message.headers.iter().find(
+        |header| header.starts_with("User-Agent")
+    ).unwrap().split(":").collect::<Vec<&str>>()[1].trim().to_owned();
+
+    let response = Response {
+        status_code: 200,
+        headers: vec!["Content-Type: text/plain".to_owned(), format!("Content-Length: {}", user_agent.len())],
+        body: user_agent,
+    };
+    response
 }
 
 
