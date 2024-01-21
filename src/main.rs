@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::fmt::{Display, format};
+use std::fmt::Display;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -58,10 +58,10 @@ fn get_file_response(request: Request, directory: &str) -> Response {
     let filename = &sanitize_filename::sanitize(unsanitized_filename);
     let file_location = format!("{}/{}", directory, filename);
     let path = Path::new(&file_location);
-    let content_length = format!("Content-Type: application/octet-stream: {}", path.metadata().unwrap().len());
 
     let response = if Path::exists(path) {
         let file = fs::read_to_string(path).unwrap();
+        let content_length = format!("Content-Length: {}", file.len());
         Response {
             status_code: 200,
             headers: vec![
@@ -73,7 +73,7 @@ fn get_file_response(request: Request, directory: &str) -> Response {
     } else {
         Response {
             status_code: 404,
-            headers: vec!["Content-Type: text/plain".to_owned()],
+            headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
             body: "".to_owned(),
         }
     };
