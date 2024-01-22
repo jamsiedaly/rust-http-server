@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::fmt::Display;
 use std::fs;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::Path;
@@ -9,19 +10,28 @@ use std::sync::Arc;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "./files")]
-    directory: String,
+    #[arg(short, long)]
+    directory: Option<String>,
 }
 
 fn main() {
-    let args = Arc::new(Args::parse());
+    let args = Args::parse();
+
+    let directory = match args.directory {
+        None => {
+            Arc::new("files".to_owned())
+        }
+        Some(dir) => {
+            Arc::new(dir)
+        }
+    };
 
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let args = args.clone();
+                let directory = directory.clone();
                 std::thread::spawn(move || {
                     let mut buf: [u8; 128] = [0; 128];
                     if let Ok(message_length) = stream.read(&mut buf) {
@@ -38,7 +48,24 @@ fn main() {
                             let response = user_agent_request(message);
                             stream.write(response.to_string().as_bytes()).unwrap();
                         } else if message.path.starts_with("/files/") {
-                            let response = get_file_response(message, &args.directory);
+                            let response: Response = if message.method == "GET" {
+                                get_file_response(message, &directory)
+                            } else if message.method == "POST" {
+                                let unsanitized_filename = message.path.replace("/files/", "");
+                                let mut file = File::create(format!("{}/{}", directory, unsanitized_filename)).unwrap();
+                                file.write_all("message.body".as_bytes()).unwrap();
+                                Response {
+                                    status_code: 201,
+                                    headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
+                                    body: "".to_owned(),
+                                }
+                            } else {
+                                Response {
+                                    status_code: 405,
+                                    headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
+                                    body: "".to_owned(),
+                                }
+                            };
                             stream.write(response.to_string().as_bytes()).unwrap();
                         } else {
                             stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n").unwrap();
@@ -126,6 +153,7 @@ fn parse_request(request: &str) -> Request {
     let mut headers = Vec::new();
     lines.into_iter().for_each(|line| {
         if !line.is_empty() {
+            println!("Line from request: {}", line);
             headers.push(line.to_string());
         }
     });
