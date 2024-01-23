@@ -1,3 +1,5 @@
+extern crate core;
+
 use clap::Parser;
 use std::fmt::Display;
 use std::fs;
@@ -52,12 +54,32 @@ fn main() {
                                 get_file_response(message, &directory)
                             } else if message.method == "POST" {
                                 let unsanitized_filename = message.path.replace("/files/", "");
-                                let mut file = File::create(format!("{}/{}", directory, unsanitized_filename)).unwrap();
-                                file.write_all("message.body".as_bytes()).unwrap();
-                                Response {
-                                    status_code: 201,
-                                    headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
-                                    body: "".to_owned(),
+                                match File::create(format!("{}/{}", directory, unsanitized_filename)) {
+                                    Ok(mut file) => {
+                                        match file.write_all(message.content.as_bytes()) {
+                                            Ok(_) => {
+                                                Response {
+                                                    status_code: 201,
+                                                    headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
+                                                    body: "".to_owned(),
+                                                }
+                                            }
+                                            Err(_) => {
+                                                Response {
+                                                    status_code: 500,
+                                                    headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
+                                                    body: "".to_owned(),
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        Response {
+                                            status_code: 500,
+                                            headers: vec!["Content-Type: text/plain".to_owned(), "Content-Length: 0".to_owned()],
+                                            body: "".to_owned(),
+                                        }
+                                    }
                                 }
                             } else {
                                 Response {
@@ -140,6 +162,7 @@ struct Request {
     headers: Vec<String>,
     path: String,
     http_version: String,
+    content: String,
 }
 
 fn parse_request(request: &str) -> Request {
@@ -151,14 +174,34 @@ fn parse_request(request: &str) -> Request {
     let http_version = parts.next().unwrap().to_owned();
 
     let mut headers = Vec::new();
-    lines.into_iter().for_each(|line| {
-        if !line.is_empty() {
-            println!("Line from request: {}", line);
-            headers.push(line.to_string());
+
+    let mut parsing_headers = true;
+    let mut content_length: Option<usize> = None;
+    let mut content = String::new();
+    for line in lines {
+        if parsing_headers {
+            if line.is_empty() {
+                parsing_headers = false;
+                continue;
+            } else {
+                if line.starts_with("Content-Length") {
+                    content_length = line.split(":")
+                        .collect::<Vec<&str>>()[1]
+                        .trim()
+                        .parse::<usize>()
+                        .ok();
+                }
+                headers.push(line.to_owned());
+            }
+        } else if content_length.is_some() {
+            content.push_str(line);
         }
-    });
-    if headers.len() > 1 {
-        headers.remove(headers.len() - 1);
+        match content_length {
+            Some(content_length) => {
+                content = (&content[..content_length]).to_string();
+            },
+            _ => {}
+        }
     }
 
     return Request {
@@ -166,6 +209,7 @@ fn parse_request(request: &str) -> Request {
         headers,
         path,
         http_version,
+        content: content.to_owned(),
     };
 }
 
