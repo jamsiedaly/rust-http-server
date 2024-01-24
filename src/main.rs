@@ -38,7 +38,6 @@ fn main() {
                     let mut buf: [u8; 128] = [0; 128];
                     if let Ok(message_length) = stream.read(&mut buf) {
                         let request = String::from_utf8_lossy(&buf[..message_length]);
-
                         let message = parse_request(&request);
 
                         if message.path == "/" {
@@ -53,6 +52,16 @@ fn main() {
                             let response: Response = if message.method == "GET" {
                                 get_file_response(message, &directory)
                             } else if message.method == "POST" {
+                                let mut second_buf: [u8; 128] = [0; 128];
+                                match stream.read(& mut second_buf) {
+                                    Ok(length) => {
+                                        println!("{}", String::from_utf8_lossy(&buf[..length]))
+                                    }
+                                    Err(_) => {}
+                                }
+
+
+
                                 let unsanitized_filename = message.path.replace("/files/", "");
                                 match File::create(format!("{}/{}", directory, unsanitized_filename)) {
                                     Ok(mut file) => {
@@ -182,7 +191,6 @@ fn parse_request(request: &str) -> Request {
         if parsing_headers {
             if line.is_empty() {
                 parsing_headers = false;
-                continue;
             } else {
                 if line.starts_with("Content-Length") {
                     content_length = line.split(":")
@@ -195,12 +203,6 @@ fn parse_request(request: &str) -> Request {
             }
         } else if content_length.is_some() {
             content.push_str(line);
-        }
-        match content_length {
-            Some(content_length) => {
-                content = (&content[..content_length]).to_string();
-            },
-            _ => {}
         }
     }
 
