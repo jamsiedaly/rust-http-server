@@ -165,19 +165,6 @@ struct Request {
 
 fn parse_request(request: &[u8; 256], message_length: usize) -> Request {
     let request = &request[0..message_length];
-    let sections: Vec<Vec<u8>> = request.into_iter().fold(Vec::new(), |mut acc, x| {
-        if *x == 0 || acc.is_empty() {
-            acc.push(Vec::new());
-        }
-        acc.last_mut().unwrap().push(*x);
-        acc
-    });
-
-    println!("Number of sections: {}", sections.len());
-
-    sections.iter().for_each(|section| {
-        println!("{}", String::from_utf8_lossy(section));
-    });
 
     let header_section = String::from_utf8_lossy(request);
 
