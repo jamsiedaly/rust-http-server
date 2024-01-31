@@ -35,9 +35,9 @@ fn main() {
             Ok(mut stream) => {
                 let directory = directory.clone();
                 std::thread::spawn(move || {
-                    let mut buf: [u8; 128] = [0; 128];
+                    let mut buf: [u8; 256] = [0; 256];
                     if let Ok(message_length) = stream.read(&mut buf) {
-                        let message = parse_request(&buf);
+                        let message = parse_request(&buf, message_length);
 
                         if message.path == "/" {
                             stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
@@ -51,16 +51,6 @@ fn main() {
                             let response: Response = if message.method == "GET" {
                                 get_file_response(message, &directory)
                             } else if message.method == "POST" {
-                                let mut second_buf: [u8; 128] = [0; 128];
-                                match stream.read(& mut second_buf) {
-                                    Ok(length) => {
-                                        println!("{}", String::from_utf8_lossy(&buf[..length]))
-                                    }
-                                    Err(_) => {}
-                                }
-
-
-
                                 let unsanitized_filename = message.path.replace("/files/", "");
                                 match File::create(format!("{}/{}", directory, unsanitized_filename)) {
                                     Ok(mut file) => {
@@ -173,7 +163,22 @@ struct Request {
     content: String,
 }
 
-fn parse_request(request: &[u8; 128]) -> Request {
+fn parse_request(request: &[u8; 256], message_length: usize) -> Request {
+    let request = &request[0..message_length];
+    let sections: Vec<Vec<u8>> = request.into_iter().fold(Vec::new(), |mut acc, x| {
+        if *x == 0 || acc.is_empty() {
+            acc.push(Vec::new());
+        }
+        acc.last_mut().unwrap().push(*x);
+        acc
+    });
+
+    println!("Number of sections: {}", sections.len());
+
+    sections.iter().for_each(|section| {
+        println!("{}", String::from_utf8_lossy(section));
+    });
+
     let header_section = String::from_utf8_lossy(request);
 
     let mut lines = header_section.lines();
