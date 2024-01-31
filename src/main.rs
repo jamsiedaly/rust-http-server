@@ -37,8 +37,7 @@ fn main() {
                 std::thread::spawn(move || {
                     let mut buf: [u8; 128] = [0; 128];
                     if let Ok(message_length) = stream.read(&mut buf) {
-                        let request = String::from_utf8_lossy(&buf[..message_length]);
-                        let message = parse_request(&request);
+                        let message = parse_request(&buf);
 
                         if message.path == "/" {
                             stream.write(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
@@ -174,8 +173,10 @@ struct Request {
     content: String,
 }
 
-fn parse_request(request: &str) -> Request {
-    let mut lines = request.lines();
+fn parse_request(request: &[u8; 128]) -> Request {
+    let header_section = String::from_utf8_lossy(request);
+
+    let mut lines = header_section.lines();
     let first_line = lines.next().unwrap();
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap().to_owned();
